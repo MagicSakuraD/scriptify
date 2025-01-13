@@ -1,5 +1,12 @@
 import React, { useRef, useState } from "react";
-import { View, Text, TouchableOpacity, Alert } from "react-native";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Image,
+  Alert,
+  Linking,
+} from "react-native";
 import {
   Camera,
   useCameraDevice,
@@ -10,11 +17,12 @@ import {
 import { useIsFocused } from "@react-navigation/native";
 import { useAppState } from "@react-native-community/hooks";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
-import { CameraRoll } from "@react-native-camera-roll/camera-roll";
+import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
 import * as MediaLibrary from "expo-media-library";
 
 export default function App() {
   const [isFrontCamera, setIsFrontCamera] = useState(false);
+  const [previewUri, setPreviewUri] = useState<string | null>(null); // 用于存储图片预览路径
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice(isFrontCamera ? "front" : "back");
   const isFocused = useIsFocused();
@@ -69,7 +77,7 @@ export default function App() {
 
         // 保存照片到媒体库
         const asset = await MediaLibrary.createAssetAsync(photo.path);
-
+        setPreviewUri(asset.uri); // 更新预览图片路径
         Alert.alert("拍照成功", `照片已保存到相册\n路径：${asset.uri}`);
       }
     } catch (error: unknown) {
@@ -85,6 +93,28 @@ export default function App() {
     setIsFrontCamera((current) => !current);
   };
 
+  const openMediaLibrary = async () => {
+    try {
+      // 尝试获取用户默认相册
+      const albums = await MediaLibrary.getAlbumsAsync();
+      if (albums.length > 0) {
+        // 打开媒体库，跳转到 Google Photos 或系统媒体库
+        const mediaLibraryUrl = "content://media/internal/images/media";
+        Linking.openURL(mediaLibraryUrl).catch((err) =>
+          Alert.alert("无法打开媒体库", err.message)
+        );
+      } else {
+        Alert.alert("没有找到相册", "您可能还没有照片可查看。");
+      }
+    } catch (error: unknown) {
+      console.error("打开媒体库失败:", error);
+      Alert.alert(
+        "错误",
+        error instanceof Error ? error.message : "无法访问媒体库。"
+      );
+    }
+  };
+
   return (
     <View className="flex-1 relative">
       {/* 相机预览 */}
@@ -96,25 +126,49 @@ export default function App() {
         format={format}
         photo={true}
       />
-      {/* 切换相机按钮 */}
-      <TouchableOpacity
-        className="absolute top-12 right-6  p-2 rounded-full"
-        onPress={toggleCamera}
-      >
-        <FontAwesome name="exchange" size={24} color="white" />
-      </TouchableOpacity>
-      {/* 拍照按钮 */}
-      <TouchableOpacity
-        className="absolute bottom-10 self-center"
-        onPress={takePhoto}
-      >
-        <FontAwesome
-          name="circle-thin"
-          size={80}
-          color="white"
-          className="stroke-0"
-        />
-      </TouchableOpacity>
+
+      {/* 按钮栏 */}
+      <View className="absolute bottom-10 flex-row items-center justify-evenly px-6 w-full">
+        {/* 图片预览 */}
+        <TouchableOpacity onPress={openMediaLibrary}>
+          {previewUri ? (
+            <Image
+              source={{ uri: previewUri }}
+              style={{
+                width: 60,
+                height: 60,
+                borderRadius: 30,
+                borderWidth: 2,
+                borderColor: "white",
+              }}
+            />
+          ) : (
+            <View
+              style={{
+                width: 60,
+                height: 60,
+                borderRadius: 30,
+                backgroundColor: "gray",
+                borderWidth: 2,
+                borderColor: "white",
+              }}
+            />
+          )}
+        </TouchableOpacity>
+
+        {/* 拍照按钮 */}
+        <TouchableOpacity onPress={takePhoto} className="mx-6">
+          <FontAwesome name="circle-thin" size={80} color="white" />
+        </TouchableOpacity>
+
+        {/* 切换相机按钮 */}
+        <TouchableOpacity
+          onPress={toggleCamera}
+          className="bg-gray-500/30 w-16 h-16 rounded-full flex items-center justify-center"
+        >
+          <FontAwesome6 name="rotate" size={30} color="white" />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
