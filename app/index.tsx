@@ -57,7 +57,7 @@ export default function App() {
     try {
       if (camera.current) {
         const photo = await camera.current.takePhoto({
-          flash: "auto", // 可选：控制闪光灯模式
+          flash: "off", // 可选：控制闪光灯模式
         });
 
         // 请求媒体库写入权限
