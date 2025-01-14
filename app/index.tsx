@@ -135,8 +135,8 @@ export default function App() {
             <Image
               source={{ uri: previewUri }}
               style={{
-                width: 60,
-                height: 60,
+                width: 50,
+                height: 50,
                 borderRadius: 30,
                 borderWidth: 2,
                 borderColor: "white",
@@ -145,8 +145,8 @@ export default function App() {
           ) : (
             <View
               style={{
-                width: 60,
-                height: 60,
+                width: 50,
+                height: 50,
                 borderRadius: 30,
                 backgroundColor: "gray",
                 borderWidth: 2,
