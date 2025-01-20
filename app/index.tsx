@@ -1,12 +1,5 @@
-import React, { useRef, useState, useCallback, useEffect } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  Image,
-  Alert,
-  Linking,
-} from "react-native";
+import React, { useRef, useState, useCallback } from "react";
+import { View, Text, TouchableOpacity, Image, Alert } from "react-native";
 import {
   Camera,
   useCameraDevice,
@@ -19,6 +12,7 @@ import { useAppState } from "@react-native-community/hooks";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import FontAwesome6 from "@expo/vector-icons/FontAwesome6";
 import * as MediaLibrary from "expo-media-library";
+import { Link } from "expo-router"; // 引入 Link 组件
 
 export default function App() {
   const [isFrontCamera, setIsFrontCamera] = useState(false);
@@ -49,7 +43,6 @@ export default function App() {
         // 保存照片到媒体库
         const asset = await MediaLibrary.createAssetAsync(photo.path);
         setPreviewUri(asset.uri);
-        Alert.alert("拍照成功", `照片已保存到相册\n路径：${asset.uri}`);
       }
     } catch (error: unknown) {
       console.error("拍照失败:", error);
@@ -63,27 +56,6 @@ export default function App() {
   // 切换相机
   const toggleCamera = useCallback(() => {
     setIsFrontCamera((current) => !current);
-  }, []);
-
-  // 打开媒体库
-  const openMediaLibrary = useCallback(async () => {
-    try {
-      const albums = await MediaLibrary.getAlbumsAsync();
-      if (albums.length > 0) {
-        const mediaLibraryUrl = "content://media/internal/images/media";
-        Linking.openURL(mediaLibraryUrl).catch((err) =>
-          Alert.alert("无法打开媒体库", err.message)
-        );
-      } else {
-        Alert.alert("没有找到相册", "您可能还没有照片可查看。");
-      }
-    } catch (error: unknown) {
-      console.error("打开媒体库失败:", error);
-      Alert.alert(
-        "错误",
-        error instanceof Error ? error.message : "无法访问媒体库。"
-      );
-    }
   }, []);
 
   if (hasPermission === undefined) {
@@ -139,24 +111,33 @@ export default function App() {
       {/* 按钮栏 */}
       <View className="absolute bottom-10 flex-row items-center justify-evenly px-6 w-full">
         {/* 图片预览 */}
+
         <TouchableOpacity
-          onPress={openMediaLibrary}
+          onPress={() => {}}
           className="bg-gray-500/30 w-16 h-16 rounded-full flex items-center justify-center"
         >
-          {previewUri ? (
-            <Image
-              source={{ uri: previewUri }}
-              style={{
-                width: 50,
-                height: 50,
-                borderRadius: 30,
-                borderWidth: 2,
-                borderColor: "white",
-              }}
-            />
-          ) : (
-            <FontAwesome6 name="photo-film" size={24} color="white" />
-          )}
+          {/* 使用 Link 组件来跳转到详情页，并携带 previewUri 参数 */}
+          <Link
+            href={{
+              pathname: "/detail", // 目标页面路径
+              params: { photoUri: previewUri }, // 传递的参数
+            }}
+          >
+            {previewUri ? (
+              <Image
+                source={{ uri: previewUri }}
+                style={{
+                  width: 50,
+                  height: 50,
+                  borderRadius: 30,
+                  borderWidth: 2,
+                  borderColor: "white",
+                }}
+              />
+            ) : (
+              <FontAwesome6 name="photo-film" size={24} color="white" />
+            )}
+          </Link>
         </TouchableOpacity>
 
         {/* 拍照按钮 */}
