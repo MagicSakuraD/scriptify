@@ -16,7 +16,15 @@ import { Link } from "expo-router"; // 引入 Link 组件
 
 export default function App() {
   const [isFrontCamera, setIsFrontCamera] = useState(false);
-  const [previewUri, setPreviewUri] = useState<string | null>(null);
+  // Update previewUri state to include media type
+  const [mediaState, setMediaState] = useState<{
+    uri: string | null;
+    isVideo: boolean;
+  }>({
+    uri: null,
+    isVideo: false,
+  });
+  const [isVideoMode, setIsVideoMode] = useState(false); // 新的状态变量，控制拍照/视频模式
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice(isFrontCamera ? "front" : "back");
   const isFocused = useIsFocused();
@@ -24,6 +32,7 @@ export default function App() {
   const isActive = isFocused && appState === "active";
   const format = useCameraFormat(device, Templates.Snapchat);
   const camera = useRef<Camera>(null);
+  const [isRecording, setIsRecording] = useState(false);
 
   // 拍照函数
   const takePhoto = useCallback(async () => {
@@ -32,17 +41,13 @@ export default function App() {
         const photo = await camera.current.takePhoto({
           flash: "off",
         });
-
-        // 请求媒体库写入权限
         const { status } = await MediaLibrary.requestPermissionsAsync();
         if (status !== "granted") {
           Alert.alert("权限不足", "需要媒体库权限才能保存照片。");
           return;
         }
-
-        // 保存照片到媒体库
         const asset = await MediaLibrary.createAssetAsync(photo.path);
-        setPreviewUri(asset.uri);
+        setMediaState({ uri: asset.uri, isVideo: false });
       }
     } catch (error: unknown) {
       console.error("拍照失败:", error);
@@ -53,10 +58,70 @@ export default function App() {
     }
   }, []);
 
+  // 视频录制函数
+  const handleVideo = useCallback(async () => {
+    if (!camera.current) return;
+
+    if (!isRecording) {
+      try {
+        setIsRecording(true);
+        await camera.current.startRecording({
+          onRecordingFinished: async (video) => {
+            console.log("Recording finished:", video);
+            try {
+              // 请求媒体库权限
+              const { status } = await MediaLibrary.requestPermissionsAsync();
+              if (status !== "granted") {
+                Alert.alert("权限不足", "需要媒体库权限才能保存视频。");
+                return;
+              }
+              // 保存视频到媒体库
+              const asset = await MediaLibrary.createAssetAsync(video.path);
+              setMediaState({ uri: asset.uri, isVideo: true });
+              Alert.alert("成功", "视频已保存到相册");
+            } catch (error) {
+              console.error("保存视频失败:", error);
+              Alert.alert("错误", "保存视频失败");
+            }
+          },
+          onRecordingError: (error) => {
+            console.error("Recording failed:", error);
+            Alert.alert("错误", "录制视频失败");
+            setIsRecording(false);
+          },
+        });
+      } catch (error) {
+        console.error("开始录制失败:", error);
+        setIsRecording(false);
+      }
+    } else {
+      try {
+        await camera.current.stopRecording();
+        setIsRecording(false);
+      } catch (error) {
+        console.error("停止录制失败:", error);
+      }
+    }
+  }, [isRecording]);
+
   // 切换相机
   const toggleCamera = useCallback(() => {
     setIsFrontCamera((current) => !current);
   }, []);
+
+  // 切换模式
+  const toggleMode = useCallback(() => {
+    setIsVideoMode((current) => !current);
+  }, []);
+
+  // 统一的拍摄处理函数
+  const handleCapture = useCallback(() => {
+    if (isVideoMode) {
+      handleVideo();
+    } else {
+      takePhoto();
+    }
+  }, [isVideoMode, handleVideo, takePhoto]);
 
   if (hasPermission === undefined) {
     return <View className="flex-1 bg-gray-100" />;
@@ -98,7 +163,9 @@ export default function App() {
           device={device}
           isActive={isActive}
           format={format}
-          photo={true}
+          video={true}
+          audio={false}
+          photo={!isVideoMode} // 如果是视频模式，不拍照
           onInitialized={() => console.log("相机已初始化")}
           onError={(error) =>
             console.error("相机运行时错误:", error.code, error.message)
@@ -108,24 +175,40 @@ export default function App() {
         />
       )}
 
-      {/* 按钮栏 */}
-      <View className="absolute bottom-10 flex-row items-center justify-evenly px-6 w-full">
-        {/* 图片预览 */}
+      {/* 工具栏 */}
+      <View className="absolute top-20 right-5 flex-col items-center justify-between w-20 h-96">
+        {/* 切换模式按钮 */}
+        <TouchableOpacity
+          onPress={toggleMode}
+          className="bg-gray-500/30 w-12 h-12 rounded-full flex items-center justify-center"
+        >
+          <FontAwesome6
+            name={isVideoMode ? "camera" : "video"} // 根据模式显示不同的图标
+            size={24}
+            color="white"
+          />
+        </TouchableOpacity>
+      </View>
 
+      {/* 按钮栏 */}
+      <View className="absolute bottom-10 flex-row items-center justify-between px-6 w-full">
+        {/* 图片预览 */}
         <TouchableOpacity
           onPress={() => {}}
           className="bg-gray-500/30 w-16 h-16 rounded-full flex items-center justify-center"
         >
-          {/* 使用 Link 组件来跳转到详情页，并携带 previewUri 参数 */}
           <Link
             href={{
-              pathname: "/detail", // 目标页面路径
-              params: { photoUri: previewUri }, // 传递的参数
+              pathname: "/detail",
+              params: {
+                photoUri: mediaState.uri,
+                isVideo: mediaState.isVideo.toString(),
+              },
             }}
           >
-            {previewUri ? (
+            {mediaState.uri ? (
               <Image
-                source={{ uri: previewUri }}
+                source={{ uri: mediaState.uri }}
                 style={{
                   width: 50,
                   height: 50,
@@ -141,11 +224,42 @@ export default function App() {
         </TouchableOpacity>
 
         {/* 拍照按钮 */}
-        <TouchableOpacity onPress={takePhoto} className="mx-6">
+        <TouchableOpacity
+          onPress={handleCapture}
+          className="mx-6 relative items-center justify-center"
+        >
           <FontAwesome name="circle-thin" size={80} color="white" />
+          {isVideoMode && (
+            <View
+              style={{
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                width: 52,
+                height: 52,
+                justifyContent: "center",
+                alignItems: "center",
+                marginLeft: -26,
+                marginTop: -26,
+              }}
+            >
+              {isRecording ? (
+                <View
+                  style={{
+                    width: 36,
+                    height: 36,
+                    backgroundColor: "red",
+                    borderRadius: 8,
+                  }}
+                />
+              ) : (
+                <FontAwesome name="circle" size={52} color="red" />
+              )}
+            </View>
+          )}
         </TouchableOpacity>
 
-        {/* 切换相机按钮 */}
+        {/* 切换相机前后置 */}
         <TouchableOpacity
           onPress={toggleCamera}
           className="bg-gray-500/30 w-16 h-16 rounded-full flex items-center justify-center"
