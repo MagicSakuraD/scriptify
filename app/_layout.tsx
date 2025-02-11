@@ -15,6 +15,7 @@ export default function RootLayout() {
       <Stack.Screen
         name="detail"
         options={{
+          title: "预览", // 设置标题
           headerShown: true, // 显示 header
           statusBarStyle: "dark", // 设置状态栏样式（可选）
         }}

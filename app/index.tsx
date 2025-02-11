@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback } from "react";
+import React, { useRef, useState, useCallback, useEffect } from "react";
 import { View, Text, TouchableOpacity, Image, Alert } from "react-native";
 import {
   Camera,
@@ -33,6 +33,7 @@ export default function App() {
   const format = useCameraFormat(device, Templates.Snapchat);
   const camera = useRef<Camera>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [recordSeconds, setRecordSeconds] = useState(0); // 录像时间（秒）
 
   // 拍照函数
   const takePhoto = useCallback(async () => {
@@ -65,6 +66,7 @@ export default function App() {
     if (!isRecording) {
       try {
         setIsRecording(true);
+        setRecordSeconds(0); // 重置计时器
         await camera.current.startRecording({
           onRecordingFinished: async (video) => {
             console.log("Recording finished:", video);
@@ -78,7 +80,6 @@ export default function App() {
               // 保存视频到媒体库
               const asset = await MediaLibrary.createAssetAsync(video.path);
               setMediaState({ uri: asset.uri, isVideo: true });
-              Alert.alert("成功", "视频已保存到相册");
             } catch (error) {
               console.error("保存视频失败:", error);
               Alert.alert("错误", "保存视频失败");
@@ -93,11 +94,13 @@ export default function App() {
       } catch (error) {
         console.error("开始录制失败:", error);
         setIsRecording(false);
+        setRecordSeconds(0); // 发生错误时也重置计时器
       }
     } else {
       try {
         await camera.current.stopRecording();
         setIsRecording(false);
+        setRecordSeconds(0); // 发生错误时也重置计时器
       } catch (error) {
         console.error("停止录制失败:", error);
       }
@@ -122,6 +125,30 @@ export default function App() {
       takePhoto();
     }
   }, [isVideoMode, handleVideo, takePhoto]);
+
+  // 录像计时器
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    if (isRecording) {
+      interval = setInterval(() => {
+        setRecordSeconds((prev) => prev + 1);
+      }, 1000);
+    } else {
+      if (interval) clearInterval(interval);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isRecording]);
+
+  // 格式化时间
+  const formatTime = (seconds: number) => {
+    const min = Math.floor(seconds / 60);
+    const sec = seconds % 60;
+    const mm = String(min).padStart(2, "0");
+    const ss = String(sec).padStart(2, "0");
+    return `${mm}:${ss}`;
+  };
 
   if (hasPermission === undefined) {
     return <View className="flex-1 bg-gray-100" />;
@@ -173,6 +200,26 @@ export default function App() {
           onStarted={() => console.log("相机开始工作")}
           onStopped={() => console.log("相机已停止")}
         />
+      )}
+
+      {/* 录像时间显示 */}
+      {isVideoMode && isRecording && (
+        <View
+          className="absolute top-10 -right-6"
+          style={{ transform: [{ translateX: -50 }] }}
+        >
+          <View className="flex-row items-center">
+            <View
+              className="w-2 h-2 rounded-full bg-red-500 mr-2"
+              style={{
+                opacity: recordSeconds % 2 ? 0.3 : 1, // 每秒闪烁一次
+              }}
+            />
+            <Text style={{ color: "red", fontSize: 18 }}>
+              {formatTime(recordSeconds)}
+            </Text>
+          </View>
+        </View>
       )}
 
       {/* 工具栏 */}
