@@ -6,6 +6,8 @@ import {
   useCameraPermission,
   useCameraFormat,
   Templates,
+  useCodeScanner,
+  Code,
 } from "react-native-vision-camera";
 import { useIsFocused } from "@react-navigation/native";
 import { useAppState } from "@react-native-community/hooks";
@@ -34,6 +36,18 @@ export default function App() {
   const camera = useRef<Camera>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0); // 录像时间（秒）
+  // 在现有的 state 声明下添加
+  const [isScanning, setIsScanning] = useState(false);
+  const [scannedCodes, setScannedCodes] = useState<Code[]>([]);
+
+  // 添加扫描器配置
+  const codeScanner = useCodeScanner({
+    codeTypes: ["qr", "ean-13"],
+    onCodeScanned: (codes) => {
+      // console.log("Scanned codes:", codes);
+      setScannedCodes(codes);
+    },
+  });
 
   // 拍照函数
   const takePhoto = useCallback(async () => {
@@ -193,6 +207,7 @@ export default function App() {
           video={true}
           audio={false}
           photo={!isVideoMode} // 如果是视频模式，不拍照
+          codeScanner={isScanning ? codeScanner : undefined}
           onInitialized={() => console.log("相机已初始化")}
           onError={(error) =>
             console.error("相机运行时错误:", error.code, error.message)
@@ -223,7 +238,7 @@ export default function App() {
       )}
 
       {/* 工具栏 */}
-      <View className="absolute top-20 right-5 flex-col items-center justify-between w-20 h-96">
+      <View className="absolute top-20 right-5 flex-col items-center justify-start w-20 h-96 gap-5">
         {/* 切换模式按钮 */}
         <TouchableOpacity
           onPress={toggleMode}
@@ -234,6 +249,14 @@ export default function App() {
             size={24}
             color="white"
           />
+        </TouchableOpacity>
+
+        {/* 二维码扫描按钮 */}
+        <TouchableOpacity
+          onPress={() => setIsScanning(!isScanning)}
+          className="bg-gray-500/30 w-12 h-12 rounded-full flex items-center justify-center"
+        >
+          <FontAwesome6 name="qrcode" size={24} color="white" />
         </TouchableOpacity>
       </View>
 
@@ -314,6 +337,45 @@ export default function App() {
           <FontAwesome6 name="rotate" size={24} color="white" />
         </TouchableOpacity>
       </View>
+
+      {/* 扫描提示UI */}
+      {isScanning && (
+        <View className="absolute inset-0 flex items-center justify-center">
+          <View className="border-2 border-white w-64 h-64 rounded-lg" />
+          <Text className="text-white mt-4">将二维码放入框内</Text>
+        </View>
+      )}
+
+      {/* 扫描结果显示 */}
+      {isScanning && scannedCodes.length > 0 && (
+        <View className="absolute top-10 left-5 bg-black/50 p-4 rounded-lg">
+          <View className="flex-row justify-between items-center mb-2">
+            <Text className="text-white font-bold">扫描结果：</Text>
+            <TouchableOpacity
+              onPress={() => {
+                setScannedCodes([]);
+                setIsScanning(false);
+              }}
+              className="ml-4"
+            >
+              <FontAwesome6 name="xmark" size={20} color="white" />
+            </TouchableOpacity>
+          </View>
+          {scannedCodes.map((code, index) => (
+            <View key={index} className="py-1">
+              {code.value &&
+              (code.value.startsWith("http://") ||
+                code.value.startsWith("https://")) ? (
+                <Link href={code.value as `https://${string}`} className="py-1">
+                  <Text className="text-blue-400 underline">{code.value}</Text>
+                </Link>
+              ) : (
+                <Text className="text-white">{code.value || ""}</Text>
+              )}
+            </View>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
